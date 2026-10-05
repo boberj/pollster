@@ -40,6 +40,60 @@ browser's names. These environment variables change its behavior:
 | `POLLSTER_ORIGIN` | from the request | The origin used in copyable links, such as `https://polls.example`. Set it when a proxy in front of the app doesn't send `X-Forwarded-Proto`. |
 | `POLLSTER_TEST_TAGS` | off | Set it to `true` to write test tags into the HTML, for browser tests. |
 
+## Deploy it
+
+The `Dockerfile` builds an image that serves Pollster on port 8080 and keeps its data in `/data`.
+Jetlin isn't published yet, so the build fetches Jetlin's source from
+[GitHub](https://github.com/boberj/jetlin) and compiles it alongside Pollster. The build needs no
+other checkout, only network access to GitHub, Maven Central, and the Gradle distribution server.
+
+### With Dokploy
+
+[Dokploy](https://dokploy.com) builds the image from this repository and runs it behind its own
+reverse proxy, which also gets the HTTPS certificate.
+
+1. In a project, create an **Application**.
+2. Under **Provider**, choose GitHub (or Git with the repository's URL), select this repository, and
+   select the `main` branch.
+3. Under **Build Type**, choose **Dockerfile**. The defaults are right: the Dockerfile is at
+   `Dockerfile`, and the build context is the repository root.
+4. Under **Advanced** > **Volumes**, add a volume mount with the mount path `/data`, and a name such as
+   `pollster-data`. This is where the database and the sign-in sessions live. Without it, every
+   deployment starts with no polls and signs everyone out.
+5. Under **Domains**, add your domain with container port `8080`, and turn on HTTPS.
+6. Click **Deploy**. The first build takes several minutes, because it compiles Jetlin and Pollster
+   from source.
+
+To redeploy on every push to `main`, turn on **Autodeploy** for the application.
+
+Keep the application at one replica. Pollster stores everything in one SQLite file, and Jetlin keeps
+each open page's state in the process's memory, so two containers can't share the work. A
+deployment replaces the container, so open pages reload once, and nobody's data is lost.
+
+**Settings you don't need to change.** Dokploy's proxy passes on the request's `Host` header, which
+Jetlin needs to accept the page's WebSocket connection, and its `X-Forwarded-Proto` header, so the
+links that Pollster offers to copy start with `https://`. If they start with `http://` instead, set
+the environment variable `POLLSTER_ORIGIN` to your site's address, such as `https://polls.example`.
+
+**Choosing the Jetlin version.** The image builds against Jetlin's `main` branch by default, so a
+rebuild can pick up Jetlin changes you didn't intend to deploy. To pin a version, add a build-time
+argument in the build arguments field of the application's **Environment** tab:
+
+```
+JETLIN_REF=574e334
+```
+
+It takes a commit SHA, a tag, or a branch name.
+
+### With Docker alone
+
+```bash
+docker build -t pollster .
+docker run -d -p 8080:8080 -v pollster-data:/data pollster
+```
+
+Pass `--build-arg JETLIN_REF=<sha>` to `docker build` to pin the Jetlin version.
+
 ## How it's organized
 
 | File | What it holds |

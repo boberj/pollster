@@ -1,0 +1,14 @@
+# Built inside the image, so local copies would only slow down sending the build context.
+build/
+.gradle/
+.kotlin/
+node_modules/
+
+# Local data must never end up in an image.
+data/
+*.db
+*.db-shm
+*.db-wal
+
+.git/
+.idea/

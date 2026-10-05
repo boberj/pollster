@@ -54,7 +54,7 @@ fun CreatePage(polls: PollService) = WithVoter {
             } else {
                 PollForm(form, submitLabel = "Create Poll") {
                     try {
-                        created = polls.create(form.question, form.multiple, form.rows.map { it.text })
+                        created = polls.create(form.question, form.multiple, form.filledRows.map { it.text })
                     } catch (e: Exception) {
                         // Rethrowing would end the handler before the toast is shown. Nothing was stored:
                         // a failed transaction leaves no trace.

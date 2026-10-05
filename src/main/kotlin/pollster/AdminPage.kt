@@ -65,7 +65,7 @@ private fun AdminPanel(polls: PollService, poll: Poll) {
         CardContent {
             PollForm(form, submitLabel = "Update Poll") {
                 try {
-                    polls.update(poll, form.question, form.multiple, form.rows.map { PollService.OptionEdit(it.existing, it.text) })
+                    polls.update(poll, form.question, form.multiple, form.filledRows.map { PollService.OptionEdit(it.existing, it.text) })
                     toaster.show("Poll Updated!", "Your poll has been successfully updated.")
                     navigator.push("/poll/${poll.slug}")
                 } catch (e: Exception) {

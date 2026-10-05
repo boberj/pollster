@@ -32,7 +32,7 @@ class PollsterAppTest {
             onNode(hasTestTag("poll-form")).submit()
 
             onNode(hasTestTag("question-error")).assertText("Please enter a question for your poll.")
-            onAll(hasText("Option text cannot be empty.")).assertCount(2)
+            onNode(hasText("Please provide at least two options.")).assertExists()
             with(Voter.Anonymous) { assertTrue(db.polls.isEmpty()) }
         }
     }
@@ -62,6 +62,41 @@ class PollsterAppTest {
             // "Create Another" brings back an empty form, without a page load.
             onNode(hasTestTag("create-another")).click()
             onNode(hasTestTag("question")).assertValue("")
+        }
+    }
+
+    @Test
+    fun `empty options are left out when the poll is created`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        runViewTest {
+            pollster(polls)
+
+            onNode(hasTestTag("question")).type("Lunch?")
+            onAll(hasTestTag("option"))[0].type("Yes")
+            onNode(hasTestTag("add-option")).click()
+            onNode(hasTestTag("add-option")).click()
+            onAll(hasTestTag("option"))[2].type("No")
+            onNode(hasTestTag("poll-form")).submit()
+
+            onNode(hasTestTag("poll-links")).assertExists()
+            with(Voter.Anonymous) {
+                assertEquals(listOf("Yes", "No"), polls.options(db.polls.single()).map { it.text })
+            }
+        }
+    }
+
+    @Test
+    fun `one filled option isn't enough, however many rows there are`(): Unit = withDb { db ->
+        runViewTest {
+            pollster(PollService(db))
+
+            onNode(hasTestTag("question")).type("Lunch?")
+            onNode(hasTestTag("add-option")).click()
+            onAll(hasTestTag("option"))[1].type("Yes")
+            onNode(hasTestTag("poll-form")).submit()
+
+            onNode(hasText("Please provide at least two options.")).assertExists()
+            onAll(hasTestTag("poll-links")).assertCount(0)
         }
     }
 
@@ -227,6 +262,24 @@ class PollsterAppTest {
     }
 
     @Test
+    fun `clearing an option's text on the admin page removes it`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        val poll = polls.seed("Lunch?", "Pizza", "Sushi", "Tacos")
+        runViewTest(url = "/poll/${poll.slug}/admin/${poll.adminToken}") {
+            pollster(polls)
+
+            onAll(hasTestTag("option"))[1].type("")
+            onNode(hasTestTag("add-option")).click()
+            onNode(hasTestTag("poll-form")).submit()
+
+            assertEquals("/poll/${poll.slug}", currentUrl)
+        }
+        with(Voter.Anonymous) {
+            assertEquals(listOf("Pizza", "Tacos"), polls.options(checkNotNull(polls.bySlug(poll.slug))).map { it.text })
+        }
+    }
+
+    @Test
     fun `only the admin token lets anyone edit a poll`(): Unit = withDb { db ->
         val polls = PollService(db)
         val created = polls.seed("Lunch?", "Yes", "No")
@@ -266,7 +319,7 @@ class PollsterAppTest {
     }
 
     @Test
-    fun `"Not you" forgets only this poll's name`(): Unit = withDb { db ->
+    fun `the not-you link forgets only this poll's name`(): Unit = withDb { db ->
         val polls = PollService(db)
         val poll = polls.seed("Lunch?", "Yes", "No")
         val session = RecordingControls()
@@ -280,7 +333,7 @@ class PollsterAppTest {
     }
 
     @Test
-    fun `"Not you" signs out when it was the only name`(): Unit = withDb { db ->
+    fun `the not-you link signs out when it was the only name`(): Unit = withDb { db ->
         val polls = PollService(db)
         val poll = polls.seed("Lunch?", "Yes", "No")
         val session = RecordingControls()

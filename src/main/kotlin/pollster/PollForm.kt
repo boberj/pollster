@@ -64,13 +64,21 @@ class PollFormState(question: String = "", multiple: Boolean = false, options: L
     val questionError: String?
         get() = if (question.isBlank()) "Please enter a question for your poll." else null
 
-    fun optionError(row: OptionRow): String? = if (row.text.isBlank()) "Option text cannot be empty." else null
+    /**
+     * The rows that will be saved: every row with some text.
+     *
+     * An empty row isn't an error. Pressing Enter in the last option adds one, so a form often ends
+     * with a blank row, and saving simply leaves it out. On the admin page, clearing a stored option's
+     * text removes that option, like its remove button does.
+     */
+    val filledRows: List<OptionRow>
+        get() = rows.filter { it.text.isNotBlank() }
 
     val optionsError: String?
-        get() = if (rows.size < MIN_OPTIONS) "Please provide at least two options." else null
+        get() = if (filledRows.size < MIN_OPTIONS) "Please provide at least two options." else null
 
     val isValid: Boolean
-        get() = questionError == null && optionsError == null && rows.none { optionError(it) != null }
+        get() = questionError == null && optionsError == null
 
     /**
      * Copies the values the browser submitted into the form.
@@ -137,6 +145,7 @@ fun PollForm(state: PollFormState, submitLabel: String, onSubmit: () -> Unit) {
             if (state.submitted) state.optionsError?.let { FieldError(it) }
             UiButton(ButtonVariant.Outline, extraClasses = "w-full", attrs = {
                 testTag("add-option")
+                attr("data-add-option", "")
                 onClick { state.addRow() }
             }) {
                 UiIcon(Icon.PlusCircle, "mr-2 h-4 w-4")
@@ -160,6 +169,9 @@ private fun OptionInput(state: PollFormState, row: OptionRow, index: Int) {
             UiInput {
                 name("option-${row.key}")
                 testTag("option")
+                // app.js moves to the next option on Enter, adding one after the last. Without it, Enter
+                // would submit the form.
+                attr("data-option", "")
                 placeholder("Option ${index + 1}")
                 attr("aria-label", "Option ${index + 1}")
                 value(row.text)
@@ -173,6 +185,5 @@ private fun OptionInput(state: PollFormState, row: OptionRow, index: Int) {
                 }) { UiIcon(Icon.Trash) }
             }
         }
-        if (state.submitted) state.optionError(row)?.let { FieldError(it) }
     }
 }

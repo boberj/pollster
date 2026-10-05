@@ -1,6 +1,7 @@
 package pollster.ui
 
 import androidx.compose.runtime.Composable
+import jetlin.html.A
 import jetlin.html.AttrsScope
 import jetlin.html.Button
 import jetlin.html.Div
@@ -74,16 +75,37 @@ fun UiButton(
     }) { content() }
 }
 
-/** A link that looks like a button. It navigates without a page load, like any Jetlin [Link]. */
+/**
+ * A link that looks like a button.
+ *
+ * By default it navigates without a page load, like any Jetlin [Link].
+ *
+ * @param newTab opens the link in a new tab instead. It's then a plain `<a target="_blank">`, which
+ *   the browser handles alone, so this page and its session stay as they are.
+ */
 @Composable
 fun ButtonLink(
     href: String,
     variant: ButtonVariant = ButtonVariant.Default,
     size: ButtonSize = ButtonSize.Default,
     extraClasses: String? = null,
+    newTab: Boolean = false,
+    attrs: AttrsScope.() -> Unit = {},
     content: @Composable () -> Unit,
 ) {
-    Link(href, { classes(cn(buttonClasses(variant, size), extraClasses)) }) { content() }
+    val classes = cn(buttonClasses(variant, size), extraClasses)
+    if (newTab) {
+        A({
+            href(href)
+            attr("target", "_blank")
+            // The new page gets no handle on this one through window.opener.
+            attr("rel", "noopener")
+            classes(classes)
+            attrs()
+        }) { content() }
+    } else {
+        Link(href, { classes(classes); attrs() }) { content() }
+    }
 }
 
 /** A card: the white, rounded panel that every page is built from. */

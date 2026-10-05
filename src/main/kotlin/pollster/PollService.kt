@@ -72,6 +72,55 @@ class PollService(private val db: Db) {
         return Created(slug, token)
     }
 
+    /** What [rename] did. */
+    sealed interface Renamed {
+        /** The poll's link is now [slug]. */
+        data class Done(val slug: String) : Renamed
+
+        /** The link wasn't changed, and [message] says why, in words to show the user. */
+        data class Refused(val message: String) : Renamed
+    }
+
+    /**
+     * Replaces [poll]'s generated slug with one the admin chose, such as `team-lunch`.
+     *
+     * [requested] is normalized first: lowercased, with spaces and underscores turned into hyphens.
+     * The check that the slug is free happens inside the transaction, and transactions run one at a
+     * time, so two polls can't end up with the same slug.
+     *
+     * It's refused once the poll has been opened. The policy on [Poll] refuses it too, but checking
+     * here first gives a message instead of an `AccessDenied`.
+     */
+    context(voter: Voter)
+    fun rename(poll: Poll, requested: String): Renamed {
+        val slug = normalizeSlug(requested)
+        slugProblem(slug)?.let { return Renamed.Refused(it) }
+        return db.transact {
+            when {
+                poll.visited -> Renamed.Refused("Someone has already opened this poll, so its link can't change.")
+                slug == poll.slug -> Renamed.Done(slug)
+                bySlug(slug) != null -> Renamed.Refused("That link is taken. Try another.")
+                else -> {
+                    poll.update { this.slug = slug }
+                    Renamed.Done(slug)
+                }
+            }
+        }
+    }
+
+    /**
+     * Records that [poll]'s voting page has been opened, which locks its link.
+     *
+     * Any voter can do this, without the admin token. The policy on [Poll] allows exactly this change.
+     */
+    context(voter: Voter)
+    fun markVisited(poll: Poll) {
+        if (poll.visited) return
+        db.transact {
+            if (!poll.visited) poll.update { visited = true }
+        }
+    }
+
     /**
      * One row of the edit form: an option that's already stored, or a new one.
      *
@@ -143,4 +192,24 @@ class PollService(private val db: Db) {
             }
         }
     }
+}
+
+/**
+ * Turns what someone typed into slug form: `"Team Lunch!"` becomes `"team-lunch"`.
+ *
+ * Characters other than letters, digits, and hyphens are dropped rather than rejected, so pasting
+ * a title mostly works.
+ */
+fun normalizeSlug(text: String): String =
+    text.trim().lowercase()
+        .replace(Regex("[\\s_]+"), "-")
+        .replace(Regex("[^a-z0-9-]"), "")
+        .replace(Regex("-{2,}"), "-")
+        .trim('-')
+
+/** Returns why [slug] can't be used, or `null` if it can. It expects a [normalizeSlug]d value. */
+fun slugProblem(slug: String): String? = when {
+    slug.length < 3 -> "A link needs at least 3 letters or digits."
+    slug.length > 60 -> "A link can be at most 60 characters long."
+    else -> null
 }

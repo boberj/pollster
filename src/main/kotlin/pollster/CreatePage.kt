@@ -47,10 +47,15 @@ fun CreatePage(polls: PollService) = WithVoter {
         CardContent {
             val links = created
             if (links != null) {
-                PollLinks(links, onCreateAnother = {
-                    form = PollFormState()
-                    created = null
-                })
+                PollLinks(
+                    polls,
+                    links,
+                    onRenamed = { slug -> created = links.copy(slug = slug) },
+                    onCreateAnother = {
+                        form = PollFormState()
+                        created = null
+                    },
+                )
             } else {
                 PollForm(form, submitLabel = "Create Poll") {
                     try {
@@ -67,9 +72,18 @@ fun CreatePage(polls: PollService) = WithVoter {
     }
 }
 
-/** What a new poll's creator sees: the voting link to share, and the admin link to keep. */
+/**
+ * What a new poll's creator sees: the voting link to share, the admin link to keep, and, until the
+ * poll is first opened, a way to change the link.
+ */
 @Composable
-private fun PollLinks(links: PollService.Created, onCreateAnother: () -> Unit) {
+context(voter: Voter)
+private fun PollLinks(
+    polls: PollService,
+    links: PollService.Created,
+    onRenamed: (String) -> Unit,
+    onCreateAnother: () -> Unit,
+) {
     val origin = siteOrigin()
     val voteUrl = "$origin/poll/${links.slug}"
     val adminUrl = "$origin/poll/${links.slug}/admin/${links.adminToken}"
@@ -85,9 +99,20 @@ private fun PollLinks(links: PollService.Created, onCreateAnother: () -> Unit) {
         Div({ classes("w-full max-w-md space-y-4 text-left") }) {
             CopyableLink("voting-link", "Voting Link", voteUrl, "Voting")
             CopyableLink("admin-link", "Admin Link", adminUrl, "Admin")
+            // The poll was created with the token, so this page can act with it for the rename.
+            with(voter.withAdminToken(links.adminToken)) {
+                polls.byAdminLink(links.slug, links.adminToken)?.let { poll -> LinkEditor(polls, poll, onRenamed) }
+            }
         }
         Div({ classes("flex w-full max-w-md flex-col gap-4 pt-4 sm:flex-row") }) {
-            ButtonLink("/poll/${links.slug}", size = ButtonSize.Large, extraClasses = "flex-1") {
+            // A new tab, so the links stay on screen to copy after the creator has looked at the poll.
+            ButtonLink(
+                "/poll/${links.slug}",
+                size = ButtonSize.Large,
+                extraClasses = "flex-1",
+                newTab = true,
+                attrs = { testTag("go-to-poll") },
+            ) {
                 Text("Go to Poll")
                 UiIcon(Icon.ExternalLink, "ml-2 h-4 w-4")
             }

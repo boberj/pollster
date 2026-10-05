@@ -38,6 +38,7 @@ browser's names. These environment variables change its behavior:
 | `PORT` | `8080` | The port to listen on. |
 | `POLLSTER_DATA` | `data` | Where the database and sessions are stored. |
 | `POLLSTER_ORIGIN` | from the request | The origin used in copyable links, such as `https://polls.example`. Set it when a proxy in front of the app doesn't send `X-Forwarded-Proto`. |
+| `POLLSTER_MIGRATIONS` | `db/migrations` | The migrations to apply at startup. The default is right when running from the project directory. The Docker image sets it. |
 | `POLLSTER_TEST_TAGS` | off | Set it to `true` to write test tags into the HTML, for browser tests. |
 
 ## Deploy it
@@ -117,6 +118,10 @@ Pollster has no accounts, so every rule is about what a browser holds:
   "Alice" can change Alice's votes. A browser can vote only under the name it picked.
 - **Editing a poll** needs its admin token, which is the last part of the admin link. The admin page
   acts with the token from its URL, and the database rules check every write against it.
+- **Changing a poll's link** needs the admin token too, and is possible only until someone first
+  opens the voting page. After that, people may already have the link, so the rules refuse the
+  change, whichever page asks. Anything that loads the voting page counts as opening it, including a
+  chat app that fetches the link to show a preview, so change the link before sharing it.
 
 These rules live on the entities, in `Entities.kt`, and `jetlin-db` enforces them on every read and
 write. A page can't skip them by mistake.
@@ -147,8 +152,12 @@ changing an entity, run the following command, then review and commit the migrat
 ```
 
 `./gradlew build` fails if the entities and `db/schema.json` disagree, so a forgotten migration
-shows up before deployment. `./gradlew dbMigrate` applies pending migrations to the database in
-`data/`.
+shows up before deployment.
+
+The app applies pending migrations itself when it starts, before it opens the database, so a
+deployment that changes the schema needs no extra step. It records them in the same table as
+`./gradlew dbMigrate`, which you can still use on the database in `data/` without starting the app.
+The Docker image includes the migrations, and finds them through the `POLLSTER_MIGRATIONS` variable.
 
 ## Tests
 

@@ -43,11 +43,14 @@ RUN useradd --system --create-home --uid 10001 pollster \
     && chown pollster /data
 
 COPY --from=build /src/pollster/build/install/pollster /app
+# Applied at startup, so a deployment that changes the schema migrates the database in /data.
+COPY --from=build /src/pollster/db/migrations /app/migrations
 
 # The database and the sign-in sessions live in /data. Mount a volume there, or every redeploy
 # starts with no polls and signs everyone out.
 ENV PORT=8080 \
-    POLLSTER_DATA=/data
+    POLLSTER_DATA=/data \
+    POLLSTER_MIGRATIONS=/app/migrations
 VOLUME /data
 EXPOSE 8080
 

@@ -2,6 +2,7 @@ package pollster
 
 import jetlin.db.AccessDenied
 import jetlin.testing.check
+import jetlin.testing.hasAttr
 import jetlin.testing.click
 import jetlin.testing.hasTestTag
 import jetlin.testing.hasText
@@ -97,6 +98,116 @@ class PollsterAppTest {
 
             onNode(hasText("Please provide at least two options.")).assertExists()
             onAll(hasTestTag("poll-links")).assertCount(0)
+        }
+    }
+
+    @Test
+    fun `the poll's link can be replaced right after creating it`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        runViewTest {
+            pollster(polls)
+            onNode(hasTestTag("question")).type("Lunch?")
+            onAll(hasTestTag("option"))[0].type("Yes")
+            onAll(hasTestTag("option"))[1].type("No")
+            onNode(hasTestTag("poll-form")).submit()
+
+            onNode(hasTestTag("change-link")).click()
+            onNode(hasTestTag("slug")).type("Team Lunch!")
+            onNode(hasTestTag("slug-preview")).assertText("It will be saved as /poll/team-lunch")
+            onNode(hasTestTag("link-form")).submit()
+
+            onNode(hasTestTag("voting-link")).assertValue("http://localhost/poll/team-lunch")
+            onNode(hasTestTag("go-to-poll")).assertMatches(hasAttr("href", "/poll/team-lunch"))
+            with(Voter.Anonymous) { assertEquals("Lunch?", polls.bySlug("team-lunch")?.question) }
+        }
+    }
+
+    @Test
+    fun `a link that's taken or too short is refused, with a reason`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        polls.seed("Taken?", "Yes", "No").let { taken ->
+            with(Voter.Anonymous.withAdminToken(taken.adminToken)) { polls.rename(polls.bySlug(taken.slug)!!, "team-lunch") }
+        }
+        val poll = polls.seed("Lunch?", "Yes", "No")
+        runViewTest(url = "/poll/${poll.slug}/admin/${poll.adminToken}") {
+            pollster(polls)
+
+            onNode(hasTestTag("change-link")).click()
+            onNode(hasTestTag("slug")).type("team-lunch")
+            onNode(hasTestTag("link-form")).submit()
+            onNode(hasTestTag("slug-error")).assertText("That link is taken. Try another.")
+
+            onNode(hasTestTag("slug")).type("ab")
+            onNode(hasTestTag("link-form")).submit()
+            onNode(hasTestTag("slug-error")).assertText("A link needs at least 3 letters or digits.")
+        }
+        with(Voter.Anonymous) { assertTrue(polls.bySlug(poll.slug) != null) }
+    }
+
+    @Test
+    fun `renaming on the admin page moves the admin page to the new link`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        val poll = polls.seed("Lunch?", "Yes", "No")
+        runViewTest(url = "/poll/${poll.slug}/admin/${poll.adminToken}") {
+            pollster(polls)
+
+            onNode(hasTestTag("change-link")).click()
+            onNode(hasTestTag("slug")).type("friday-lunch")
+            onNode(hasTestTag("link-form")).submit()
+
+            assertEquals("/poll/friday-lunch/admin/${poll.adminToken}", currentUrl)
+            onNode(hasTestTag("poll-form")).assertExists()
+        }
+    }
+
+    @Test
+    fun `opening the voting page marks the poll as visited`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        val poll = polls.seed("Lunch?", "Yes", "No")
+        runViewTest(url = "/poll/${poll.slug}") {
+            pollster(polls)
+            onNode(hasTestTag("question")).assertExists()
+        }
+        with(Voter.Anonymous) { assertTrue(polls.bySlug(poll.slug)!!.visited) }
+    }
+
+    @Test
+    fun `once the poll is opened, its link is locked`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        val poll = polls.seed("Lunch?", "Yes", "No")
+        runViewTest(url = "/poll/${poll.slug}/admin/${poll.adminToken}") {
+            pollster(polls)
+            onNode(hasTestTag("link-editor")).assertExists()
+
+            // Someone opens the voting link in their own browser.
+            with(Voter.Anonymous) { polls.markVisited(polls.bySlug(poll.slug)!!) }
+
+            // The admin page, still open, stops offering the change.
+            onAll(hasTestTag("link-editor")).assertCount(0)
+        }
+        with(Voter.Anonymous.withAdminToken(poll.adminToken)) {
+            val stored = checkNotNull(polls.bySlug(poll.slug))
+            assertTrue(stored.visited)
+            assertEquals(
+                PollService.Renamed.Refused("Someone has already opened this poll, so its link can't change."),
+                polls.rename(stored, "too-late"),
+            )
+            // The policy refuses it too, so a stale page can't get around the check above.
+            assertFailsWith<AccessDenied> { db.transact { stored.update { slug = "too-late" } } }
+        }
+        // Nobody can mark a poll unvisited, not even its admin.
+        with(Voter.Anonymous.withAdminToken(poll.adminToken)) {
+            assertFailsWith<AccessDenied> { db.transact { polls.bySlug(poll.slug)!!.update { visited = false } } }
+        }
+    }
+
+    @Test
+    fun `the buttons to the poll open it in a new tab`(): Unit = withDb { db ->
+        val polls = PollService(db)
+        val poll = polls.seed("Lunch?", "Yes", "No")
+        runViewTest(url = "/poll/${poll.slug}/admin/${poll.adminToken}") {
+            pollster(polls)
+            onNode(hasTestTag("view-poll")).assertMatches(hasAttr("target", "_blank"))
         }
     }
 

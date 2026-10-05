@@ -33,13 +33,18 @@ import kotlinx.serialization.Serializable
  *
  * - `PORT`: the port to listen on. Defaults to 8080.
  * - `POLLSTER_DATA`: the directory for the database and the sign-in sessions. Defaults to `data`.
+ * - `POLLSTER_MIGRATIONS`: the directory of migration files to apply at startup. Defaults to
+ *   `db/migrations`, which is right when running from the project directory. The Docker image sets it.
  * - `POLLSTER_TEST_TAGS`: set to `true` to write test tags into the HTML, for browser tests. Leave it
  *   off in production, where it would only add bytes to every page.
  */
 fun main() {
     val port = System.getenv("PORT")?.toInt() ?: 8080
     val dataDir = Path(System.getenv("POLLSTER_DATA") ?: "data").createDirectories()
-    val db = Db.open(dataDir.resolve("pollster.db"), JetlinSchema.tables)
+    val dbFile = dataDir.resolve("pollster.db")
+    val applied = Migrations.apply(dbFile, Path(System.getenv("POLLSTER_MIGRATIONS") ?: "db/migrations"))
+    if (applied.isNotEmpty()) println("[pollster] Applied migrations: ${applied.joinToString()}")
+    val db = Db.open(dbFile, JetlinSchema.tables)
     val sessions = directorySessionStorage(dataDir.resolve("sessions").toFile())
     val exposeTestTags = System.getenv("POLLSTER_TEST_TAGS") == "true"
 

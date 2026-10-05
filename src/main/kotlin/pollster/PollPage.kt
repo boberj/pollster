@@ -1,6 +1,7 @@
 package pollster
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import jetlin.html.Button
 import jetlin.html.Div
@@ -46,7 +47,11 @@ fun PollPage(polls: PollService, session: SessionControls<PollsterSession>, slug
     }
     DocumentTitle("${poll.question} | Pollster")
 
+    // Opening the voting page locks the poll's link, so a link that someone has already used never
+    // stops working. It runs after the page is composed, and only once per page.
     val voter = contextOf<Voter>()
+    LaunchedEffect(poll) { with(voter) { polls.markVisited(poll) } }
+
     val name = voter.nameOn(poll)
     if (name == null) {
         NameEntry(polls, poll, session)

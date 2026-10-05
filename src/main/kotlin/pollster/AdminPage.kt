@@ -56,13 +56,18 @@ private fun AdminPanel(polls: PollService, poll: Poll) {
                     CardTitle("font-headline text-3xl") { Text("Admin Panel") }
                     CardDescription { Text("Edit your poll's question and options.") }
                 }
-                ButtonLink("/poll/${poll.slug}", ButtonVariant.Outline) {
+                ButtonLink("/poll/${poll.slug}", ButtonVariant.Outline, newTab = true, attrs = { testTag("view-poll") }) {
                     Text("View Poll")
                     UiIcon(Icon.ExternalLink, "ml-2 h-4 w-4")
                 }
             }
         }
-        CardContent {
+        CardContent("space-y-8") {
+            LinkEditor(polls, poll) { slug ->
+                toaster.show("Link changed", "The poll is now at /poll/$slug.")
+                // The admin link contains the slug, so the address bar has to follow.
+                navigator.replace("/poll/$slug/admin/${poll.adminToken}")
+            }
             PollForm(form, submitLabel = "Update Poll") {
                 try {
                     polls.update(poll, form.question, form.multiple, form.filledRows.map { PollService.OptionEdit(it.existing, it.text) })

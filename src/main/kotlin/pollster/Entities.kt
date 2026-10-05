@@ -1,5 +1,7 @@
 package pollster
 
+import jetlin.db.Change
+import jetlin.db.Column
 import jetlin.db.Entity
 import jetlin.db.Policy
 import jetlin.db.Principal
@@ -42,18 +44,28 @@ data class Voter(
 /**
  * One poll: a question, and whether voters can pick one option or several.
  *
- * @property slug the memorable public ID in the voting link, such as `acorn-ballet-irony`.
  * @property adminToken the secret in the admin link. Anyone who has it can edit the poll.
  * @property createdAt when the poll was created, in milliseconds since the epoch.
  */
 @Entity
 class Poll(
-    val slug: String,
+    slug: String,
     val adminToken: String,
     question: String,
     multiple: Boolean,
     val createdAt: Long,
 ) : Record() {
+    /**
+     * The public ID in the voting link, such as `acorn-ballet-irony`.
+     *
+     * It's generated, and whoever administers the poll can replace it until the poll is first opened
+     * ([visited]). After that, people may already have the link, so it can't change.
+     */
+    var slug: String by column(slug)
+
+    /** Whether anyone has opened the voting page yet. Once it's set, it stays set. */
+    var visited: Boolean by column(false)
+
     var question: String by column(question)
 
     /** Whether a voter can vote for several options. If not, voting for one moves their vote there. */
@@ -63,10 +75,31 @@ class Poll(
      * Anyone can see a poll: knowing its slug is what the voting link is for. Only someone holding the
      * admin token can create or change one. Creating one counts, which is why the page that creates a
      * poll acts with the token it just generated.
+     *
+     * Two columns have rules of their own:
+     *
+     * - [slug] can change only while the poll hasn't been opened. Checking it here, not only in the
+     *   page, means a stale admin page can't rename a poll that people have started using.
+     * - [visited] can't be changed through the admin token at all. Instead, anyone can make the one
+     *   change that marks an unvisited poll as visited, because anyone who opens the voting page is
+     *   who sets it. Nobody can clear it.
      */
     companion object : Policy<Poll, Voter> {
         override fun canRead(record: Poll, principal: Voter): Boolean = true
         override fun canWrite(record: Poll, principal: Voter): Boolean = principal.administers(record)
+
+        override fun canWrite(record: Poll, column: Column<Poll>, principal: Voter): Boolean = when (column) {
+            Polls.slug -> canWrite(record, principal) && !record.visited
+            Polls.visited -> false
+            else -> canWrite(record, principal)
+        }
+
+        override fun canChange(change: Change<Poll>, principal: Voter): Boolean {
+            val marksVisited = change.columns == setOf(Polls.visited) &&
+                !change.record.visited &&
+                change.newValue(Poll::visited)
+            return marksVisited || super.canChange(change, principal)
+        }
     }
 }
 

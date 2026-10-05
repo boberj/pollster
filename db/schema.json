@@ -1,0 +1,92 @@
+{
+  "tables": [
+    {
+      "name": "poll_options",
+      "entity": "pollster.PollOption",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primaryKey": true
+        },
+        {
+          "name": "poll",
+          "type": "INTEGER",
+          "nullable": false,
+          "references": "polls"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "text",
+          "type": "TEXT",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "polls",
+      "entity": "pollster.Poll",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primaryKey": true
+        },
+        {
+          "name": "adminToken",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "multiple",
+          "type": "INTEGER",
+          "nullable": false
+        },
+        {
+          "name": "question",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "TEXT",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "votes",
+      "entity": "pollster.Vote",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primaryKey": true
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "option",
+          "type": "INTEGER",
+          "nullable": false,
+          "references": "poll_options"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+/*
+ * Source stylesheet for Pollster. The Tailwind CLI compiles it into
+ * ../resources/pollster/app.css, which is committed, so running the app needs no node. This is the
+ * same arrangement Jetlin's issue-tracker sample uses.
+ *
+ * Tailwind generates a utility only for class names it finds in the files listed by @source. The
+ * class names live in Kotlin strings, so it's pointed at the Kotlin source. It finds whole literal
+ * strings only: a class assembled at runtime, such as "bg-" + tone, is never generated, and the
+ * element silently gets no styling. Write whole class names.
+ *
+ * Rebuild after adding classes: `npm run build`.
+ */
+@import "tailwindcss";
+
+@source "../kotlin/**/*.kt";
+
+/*
+ * The theme: a blue palette, written as HSL components so that utilities like bg-primary/5 can add
+ * transparency.
+ */
+:root {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 216 34% 91%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215 40% 45.1%;
+  --accent: 216 34% 91%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221 83% 53%;
+  --success: 142 71% 45%;
+  --radius: 0.8rem;
+}
+
+@theme inline {
+  --font-body: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Lilita One", ui-sans-serif, system-ui, sans-serif;
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-success: hsl(var(--success));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-fade-in: fade-in 0.4s ease-out;
+  --animate-toast-in: toast-in 0.25s ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(100%); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    margin: 0;
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+}
+
+/*
+ * Jetlin renders its own page for a route that doesn't exist. It can't be replaced, so it's styled
+ * to match the rest of the app instead.
+ */
+.jl-not-found {
+  @apply mx-auto mt-16 max-w-md rounded-lg border bg-card p-8 text-center shadow-sm;
+}
+
+.jl-not-found h1 {
+  @apply font-headline text-3xl;
+}

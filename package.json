@@ -1,0 +1,12 @@
+{
+  "name": "pollster-styles",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Builds Pollster's stylesheet. Tailwind scans the Kotlin source for class names, so run this build whenever you add one.",
+  "scripts": {
+    "build": "tailwindcss -i src/main/css/app.css -o src/main/resources/pollster/app.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.0.0"
+  }
+}

@@ -1,0 +1,16 @@
+build/
+.gradle/
+.kotlin/
+*.log
+
+# The database file. Its schema and migrations (db/) are committed; the data isn't.
+*.db
+*.db-shm
+*.db-wal
+
+node_modules/
+test-results/
+
+.idea/
+*.iml
+.DS_Store

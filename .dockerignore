@@ -9,6 +9,8 @@ data/
 *.db
 *.db-shm
 *.db-wal
+# The copies jetlin-db makes before migrating, such as pollster.db.before-0002_lock_links_after_first_visit.
+*.db.before-*
 
 .git/
 .idea/

@@ -38,7 +38,6 @@ browser's names. These environment variables change its behavior:
 | `PORT` | `8080` | The port to listen on. |
 | `POLLSTER_DATA` | `data` | Where the database and sessions are stored. |
 | `POLLSTER_ORIGIN` | from the request | The origin used in copyable links, such as `https://polls.example`. Set it when a proxy in front of the app doesn't send `X-Forwarded-Proto`. |
-| `POLLSTER_MIGRATIONS` | `db/migrations` | The migrations to apply at startup. The default is right when running from the project directory. The Docker image sets it. |
 | `POLLSTER_TEST_TAGS` | off | Set it to `true` to write test tags into the HTML, for browser tests. |
 
 ## Deploy it
@@ -70,6 +69,11 @@ To redeploy on every push to `main`, turn on **Autodeploy** for the application.
 Keep the application at one replica. Pollster stores everything in one SQLite file, and Jetlin keeps
 each open page's state in the process's memory, so two containers can't share the work. A
 deployment replaces the container, so open pages reload once, and nobody's data is lost.
+
+The old container also has to stop before the new one starts. The new one migrates the database when
+it starts, and the old one, which doesn't know the schema changed, would fail on its next write.
+Dokploy runs the application as a Docker Swarm service, whose updates stop the old container first
+by default. If you edit the service's update settings, keep `"Order": "stop-first"`.
 
 **Settings you don't need to change.** Dokploy's proxy passes on the request's `Host` header, which
 Jetlin needs to accept the page's WebSocket connection, and its `X-Forwarded-Proto` header, so the
@@ -151,13 +155,17 @@ changing an entity, run the following command, then review and commit the migrat
 ./gradlew dbDiff --name=what_changed
 ```
 
-`./gradlew build` fails if the entities and `db/schema.json` disagree, so a forgotten migration
-shows up before deployment.
+`./gradlew build` fails if the entities and `db/schema.json` disagree, or if replaying the
+migrations doesn't produce the entities' schema, so a forgotten or broken migration shows up before
+deployment.
 
-The app applies pending migrations itself when it starts, before it opens the database, so a
-deployment that changes the schema needs no extra step. It records them in the same table as
-`./gradlew dbMigrate`, which you can still use on the database in `data/` without starting the app.
-The Docker image includes the migrations, and finds them through the `POLLSTER_MIGRATIONS` variable.
+The build packages `db/migrations/` into the application's JAR, and `Db.open` applies whichever of
+them the database hasn't had when the app starts, so a deployment that changes the schema needs no
+extra step. Before it applies anything to a database that has data, it copies the database to
+`pollster.db.before-<migration>` next to it, and keeps the three most recent copies. The old
+container has to stop before the new one starts, as [With Dokploy](#with-dokploy) explains.
+`./gradlew dbMigrate` applies the same migrations to the database in `data/` without starting the
+app.
 
 ## Tests
 
